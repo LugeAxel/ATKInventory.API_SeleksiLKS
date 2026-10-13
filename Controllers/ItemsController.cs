@@ -100,22 +100,38 @@ namespace ATKInventory.API.Controllers
             command.Parameters.Add("@Category", SqlDbType.VarChar).Value = request.Category;
             command.Parameters.Add("@Price", SqlDbType.Decimal).Value = request.Price;
             command.Parameters.Add("@Stock", SqlDbType.Int).Value = request.Stock;
-            connection.Open();
 
-            var newid = Convert.ToInt32(command.ExecuteScalar());
-
-            return CreatedAtAction(
-            nameof(Getitembyid),
-            new { id = newid },
-            new
+            try
             {
-                id = newid,
-                ItemCode = request.ItemCode,
-                ItemName = request.ItemName,
-                Category = request.Category,
-                Price = request.Price,
-                Stock = request.Stock
-            });
+                connection.Open();
+
+                var newid = Convert.ToInt32(command.ExecuteScalar());
+
+                return CreatedAtAction(
+                nameof(Getitembyid),
+                new { id = newid },
+                new
+                {
+                    id = newid,
+                    ItemCode = request.ItemCode,
+                    ItemName = request.ItemName,
+                    Category = request.Category,
+                    Price = request.Price,
+                    Stock = request.Stock
+                });
+            } catch (SqlException ex) 
+            {
+                if (ex.Number == 2627 || ex.Number == 2601)
+                {
+                    return Conflict(new
+                    {
+                        message = "Conflict field Item Code Sudah digunakan."
+                    });
+                }
+                return StatusCode(500, new { message = "Terjadi kesalahan pada database.", error = ex.Message });
+
+            }
+            
         }
         [HttpPut("{id:int}")]
         public IActionResult EditById(int id, [FromBody] ItemsRequest request)
@@ -132,24 +148,34 @@ namespace ATKInventory.API.Controllers
             command.Parameters.Add("@Price", SqlDbType.Decimal).Value = request.Price;
             command.Parameters.Add("@Stock", SqlDbType.Int).Value = request.Stock;
             command.Parameters.Add("@id", SqlDbType.Int).Value = id;
-
-            connection.Open();
-
-            var rowsAffected = command.ExecuteNonQuery();
-
-
-            if (rowsAffected == 0)
+            try
             {
-                return NotFound(new
+                connection.Open();
+                var rowsAffected = command.ExecuteNonQuery();
+                if (rowsAffected == 0)
                 {
-                    message = $"Item dengan {id} Tidak ditemukan"
+                    return NotFound(new
+                    {
+                        message = $"Item dengan {id} Tidak ditemukan"
+                    });
+                }
+                return StatusCode(204, new
+                {
+                    message = "Data item berhasil diperbarui",
+                    id
                 });
-            }
-            return Ok(new
+            } catch (SqlException ex)
             {
-                message = "Data item berhasil diperbarui",
-                id
-            });
+                if (ex.Number == 2627 || ex.Number == 2601)
+                {
+                    return Conflict(new
+                    {
+                        message = "Conflict field Item Code Sudah digunakan."
+                    });
+                }
+                return StatusCode(500, new { message = "Terjadi kesalahan pada database.", error = ex.Message });
+            }
+            
         }
 
         [HttpDelete("{id:int}")]
@@ -176,7 +202,7 @@ namespace ATKInventory.API.Controllers
                     message = $"Item dengan {id} Tidak ditemukan"
                 });
             }
-            return Ok(new
+            return StatusCode(204, new
             {
                 message = "Data item berhasil dihapus",
                 id
